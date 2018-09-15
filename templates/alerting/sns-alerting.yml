@@ -1,0 +1,64 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: sns-alerting
+
+Parameters:
+
+  SnsTopic:
+    Description: The name of the Sns Topic resource defined in the calling template. This is required.
+    Type: String
+    AllowedPattern: .+
+
+  SnsFailuresAlarmName:
+    Description: The name of the Sns failures alarm
+    Type: String
+    Default: ""
+  SnsFailuresAlarmPeriod:
+    Description: The period over which the Sns failures alarm applies
+    Type: String
+    Default: ""
+  SnsFailuresAlarmThreshold:
+    Description: The threshold for the Sns failures alarm
+    Type: String
+    Default: ""
+
+  AlarmEmailAddress:
+    Description: The email address intended to receive alerts raised by the defined Cloudwatch alarms. It is not intended for this parameter to be changed.
+    Type: String
+    Default: development@zerojargon.com
+    AllowedPattern: .+
+
+Conditions:
+
+  ShouldCreateFailuresAlarm: !And
+    - !Not [ !Equals [ !Ref SnsFailuresAlarmName, "" ] ]
+    - !Not [ !Equals [ !Ref SnsFailuresAlarmPeriod, "" ] ]
+    - !Not [ !Equals [ !Ref SnsFailuresAlarmThreshold, "" ] ]
+
+Resources:
+
+  CloudwatchSnsAlarmSnsEmailTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Endpoint: !Ref AlarmEmailAddress
+          Protocol: email
+
+  NumberOfNotificationsFailedTooHighAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: ShouldCreateFailuresAlarm
+    Properties:
+      AlarmActions:
+        - !Ref CloudwatchSnsAlarmSnsEmailTopic
+      AlarmDescription: !Join [ " ", [ "SNS notifications failed alarm for ", !Ref "SnsTopic" ] ]
+      AlarmName: !Ref SnsFailuresAlarmName
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: TopicName
+          Value: !Ref SnsTopic
+      Namespace: AWS/SNS
+      MetricName: NumberOfNotificationsFailed
+      Statistic: Sum
+      Period: !Ref SnsFailuresAlarmPeriod
+      EvaluationPeriods: 1
+      Threshold: !Ref SnsFailuresAlarmThreshold
+      TreatMissingData: notBreaching

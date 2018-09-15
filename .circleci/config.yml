@@ -1,0 +1,19 @@
+defaults: &defaults
+  docker:
+    - image: circleci/node:8.10.0
+version: 2
+jobs:
+  s3_deploy:
+    <<: *defaults
+    steps:
+      - checkout
+      - run:
+          name: s3 deploy
+          command: aws s3 sync "./templates" "s3://$AWS_CLOUDFORMATION_TEMPLATES_S3_BUCKET/master" --exclude "*" --include "*.yml"
+  version: 2
+  build_and_test:
+    jobs:
+      - s3_deploy:
+          filters:
+            branches:
+                only: master

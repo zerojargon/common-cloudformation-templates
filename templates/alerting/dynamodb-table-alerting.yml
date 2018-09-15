@@ -1,0 +1,155 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: dynamodb-table-alerting
+
+Parameters:
+
+  NestedStackTemplateLocation:
+    Description: The HTTPS URL for the S3 bucket containing the Cloudformation for nested stacks
+    Type: String
+    AllowedPattern: .+
+
+  DynamoDbTable:
+    Description: The name of the DynamoDb Table resource defined in the calling template. This is required.
+    Type: String
+    AllowedPattern: .+
+
+  DynamoDbTableConditionalCheckFailedRequestsAlarmName:
+    Description: The name of the DynamoDB ConditionalCheckFailedRequests alarm
+    Type: String
+    Default: ""
+  DynamoDbTableConditionalCheckFailedRequestsAlarmPeriod:
+    Description: The period over which the DynamoDB ConditionalCheckFailedRequests alarm applies
+    Type: String
+    Default: ""
+  DynamoDbTableConditionalCheckFailedRequestsAlarmThreshold:
+    Description: The threshold for the DynamoDB ConditionalCheckFailedRequests alarm
+    Type: String
+    Default: ""
+
+  DynamoDbTableSystemErrorsAlarmName:
+    Description: The name of the DynamoDB SystemErrors alarm
+    Type: String
+    Default: ""
+  DynamoDbTableSystemErrorsAlarmPeriod:
+    Description: The period over which the DynamoDB SystemErrors alarm applies
+    Type: String
+    Default: ""
+  DynamoDbTableSystemErrorsAlarmThreshold:
+    Description: The threshold for the DynamoDB SystemErrors alarm
+    Type: String
+    Default: ""
+
+  DynamoDbTableUserErrorsAlarmName:
+    Description: The name of the DynamoDB UserErrors alarm
+    Type: String
+    Default: ""
+  DynamoDbTableUserErrorsAlarmPeriod:
+    Description: The period over which the DynamoDB UserErrors alarm applies
+    Type: String
+    Default: ""
+  DynamoDbTableUserErrorsAlarmThreshold:
+    Description: The threshold for the DynamoDB UserErrors alarm
+    Type: String
+    Default: ""
+
+  AlarmEmailAddress:
+    Description: The email address intended to receive alerts raised by the defined Cloudwatch alarms. It is not intended for this parameter to be changed.
+    Type: String
+    Default: development@zerojargon.com
+    AllowedPattern: .+
+
+Conditions:
+
+  ShouldCreateConditionalCheckFailedRequestsAlarm: !And
+    - !Not [ !Equals [ !Ref DynamoDbTableConditionalCheckFailedRequestsAlarmName, "" ] ]
+    - !Not [ !Equals [ !Ref DynamoDbTableConditionalCheckFailedRequestsAlarmPeriod, "" ] ]
+    - !Not [ !Equals [ !Ref DynamoDbTableConditionalCheckFailedRequestsAlarmThreshold, "" ] ]
+
+  ShouldCreateSystemErrorsAlarm: !And
+    - !Not [ !Equals [ !Ref DynamoDbTableSystemErrorsAlarmName, "" ] ]
+    - !Not [ !Equals [ !Ref DynamoDbTableSystemErrorsAlarmPeriod, "" ] ]
+    - !Not [ !Equals [ !Ref DynamoDbTableSystemErrorsAlarmThreshold, "" ] ]
+
+  ShouldCreateUserErrorsAlarm: !And
+    - !Not [ !Equals [ !Ref DynamoDbTableUserErrorsAlarmName, "" ] ]
+    - !Not [ !Equals [ !Ref DynamoDbTableUserErrorsAlarmPeriod, "" ] ]
+    - !Not [ !Equals [ !Ref DynamoDbTableUserErrorsAlarmThreshold, "" ] ]
+
+Resources:
+
+  CloudwatchDynamoDbTableAlarmSnsEmailTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Endpoint: !Ref AlarmEmailAddress
+          Protocol: email
+
+  CloudwatchAlarmDynamoDbTableConditionalCheckFailedRequestsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: ShouldCreateConditionalCheckFailedRequestsAlarm
+    Properties:
+      AlarmActions:
+        - !Ref CloudwatchDynamoDbTableAlarmSnsEmailTopic
+      AlarmDescription: !Join [ " ", [ "Dynamo DB Table ConditionalCheckFailedRequests alarm for ", !Ref "DynamoDbTable" ] ]
+      AlarmName: !Ref DynamoDbTableConditionalCheckFailedRequestsAlarmName
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: TableName
+          Value: !Ref DynamoDbTable
+      Namespace: AWS/DynamoDB
+      MetricName: ConditionalCheckFailedRequests
+      Statistic: Average
+      Period: !Ref DynamoDbTableConditionalCheckFailedRequestsAlarmPeriod
+      EvaluationPeriods: 1
+      Threshold: !Ref DynamoDbTableConditionalCheckFailedRequestsAlarmThreshold
+      TreatMissingData: notBreaching
+
+  CloudwatchAlarmDynamoDbTableSystemErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: ShouldCreateSystemErrorsAlarm
+    Properties:
+      AlarmActions:
+        - !Ref CloudwatchDynamoDbTableAlarmSnsEmailTopic
+      AlarmDescription: !Join [ " ", [ "Dynamo DB SystemErrors alarm for ", !Ref "DynamoDbTable" ] ]
+      AlarmName: !Ref DynamoDbTableSystemErrorsAlarmName
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: TableName
+          Value: !Ref DynamoDbTable
+      Namespace: AWS/DynamoDB
+      MetricName: SystemErrors
+      Statistic: Sum
+      Period: !Ref DynamoDbTableSystemErrorsAlarmPeriod
+      EvaluationPeriods: 1
+      Threshold: !Ref DynamoDbTableSystemErrorsAlarmThreshold
+      TreatMissingData: notBreaching
+
+  CloudwatchAlarmDynamoDbTableUserErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: ShouldCreateUserErrorsAlarm
+    Properties:
+      AlarmActions:
+        - !Ref CloudwatchDynamoDbTableAlarmSnsEmailTopic
+      AlarmDescription: !Join [ " ", [ "Dynamo DB UserErrors alarm for ", !Ref "DynamoDbTable" ] ]
+      AlarmName: !Ref DynamoDbTableUserErrorsAlarmName
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: TableName
+          Value: !Ref DynamoDbTable
+      Namespace: AWS/DynamoDB
+      MetricName: UserErrors
+      Statistic: Sum
+      Period: !Ref DynamoDbTableUserErrorsAlarmPeriod
+      EvaluationPeriods: 1
+      Threshold: !Ref DynamoDbTableUserErrorsAlarmThreshold
+      TreatMissingData: notBreaching
+
+  CloudwatchDynamoDbTableAlarmSnsFailureAlertingStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Join [ "", [ !Ref "NestedStackTemplateLocation", "/alerting/sns-alerting.yml" ] ]
+      Parameters:
+        SnsTopic: !Ref CloudwatchDynamoDbTableAlarmSnsEmailTopic
+        SnsFailuresAlarmName: !Join [ "-", [ !Ref "AWS::StackName", !Ref "DynamoDbTable", sns ] ]
+        SnsFailuresAlarmPeriod: 86400
+        SnsFailuresAlarmThreshold: 1
