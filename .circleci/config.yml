@@ -3,7 +3,7 @@ defaults: &defaults
     - image: circleci/node:8.10.0
 version: 2
 jobs:
-  s3_deploy:
+  build:
     <<: *defaults
     steps:
       - checkout
@@ -13,7 +13,7 @@ jobs:
   version: 2
   build_and_test:
     jobs:
-      - s3_deploy:
+      - build:
           filters:
             branches:
                 only: master
